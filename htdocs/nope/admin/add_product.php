@@ -1,10 +1,10 @@
 <?php
 session_start();
 if (!isset($_SESSION['admin'])) {
-    header('Location: index.php');
+    header('Location: ../index.php');
     exit();
 }
-include 'db_config.php';
+include 'database.php';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $name = $_POST['name'];

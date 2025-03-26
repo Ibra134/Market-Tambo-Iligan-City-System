@@ -1,6 +1,6 @@
 <?php
 session_start();
-include 'db_config.php';
+include 'database.php';
 
 if (!isset($_SESSION['admin_id'])) {
     header("Location: admin.php");

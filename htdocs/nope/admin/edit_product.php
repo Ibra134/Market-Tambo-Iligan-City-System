@@ -1,12 +1,14 @@
 <?php
 session_start();
-include 'db_config.php';
+require_once '../includes/database.php';  // Use centralized DB connection
 
+// Ensure admin authentication
 if (!isset($_SESSION['admin_id'])) {
-    header("Location: admin.php");
+    header("Location: ../admin/admin_login.php");
     exit();
 }
 
+// Validate and sanitize product ID
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
 if ($id === 0) {
@@ -14,6 +16,7 @@ if ($id === 0) {
     exit();
 }
 
+// Fetch product details
 $stmt = $conn->prepare("
     SELECT p.Product_ID, p.Product_Name, p.Category, p.Image_Path, i.Quantity_Available
     FROM Products p
@@ -30,26 +33,45 @@ if (!$product) {
     exit();
 }
 
+// Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $product_name = $_POST['product_name'] ?? '';
     $category = $_POST['category'] ?? '';
     $quantity = isset($_POST['quantity']) ? intval($_POST['quantity']) : 0;
 
     $imagePath = $product['Image_Path'];
+
+    // Handle image upload
     if (!empty($_FILES['image']['name'])) {
-        $uploadDir = "uploads/";
-        $imagePath = $uploadDir . basename($_FILES['image']['name']);
+        $uploadDir = "../uploads/";
         
-        if (!move_uploaded_file($_FILES['image']['tmp_name'], $imagePath)) {
-            echo "Failed to upload image.";
+        // Create the uploads directory if it doesn't exist
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0777, true);
+        }
+
+        $imagePath = $uploadDir . basename($_FILES['image']['name']);
+
+        // Secure image upload
+        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+        $fileType = mime_content_type($_FILES['image']['tmp_name']);
+
+        if (in_array($fileType, $allowedTypes)) {
+            if (!move_uploaded_file($_FILES['image']['tmp_name'], $imagePath)) {
+                echo "Failed to upload image.";
+                exit();
+            }
+        } else {
+            echo "Invalid file type. Only JPG, PNG, and GIF are allowed.";
             exit();
         }
     }
 
+    // Start transaction for data integrity
     $conn->begin_transaction();
 
     try {
-
+        // Update product details
         $stmt = $conn->prepare("
             UPDATE Products 
             SET Product_Name = ?, Category = ?, Image_Path = ? 
@@ -62,6 +84,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         $stmt->close();
 
+        // Update inventory quantity
         $stmt = $conn->prepare("
             UPDATE Inventory 
             SET Quantity_Available = ? 
@@ -75,12 +98,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt->close();
 
         $conn->commit();
-
-        header("Location: admin_dashboard.php");
+        
+        $_SESSION['success'] = "Product updated successfully.";
+        header("Location: ../admin/admin_dashboard.php");
         exit();
     } catch (Exception $e) {
-        $conn->rollback(); 
-        echo "Error: " . $e->getMessage();
+        $conn->rollback();
+        $_SESSION['error'] = "Error: " . $e->getMessage();
     }
 }
 ?>
@@ -90,7 +114,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <title>Edit Product</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="../css/style.css">  <!-- Centralized stylesheet -->
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -183,7 +207,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <button type="submit">Save Changes</button>
     </form>
 
-    <a href="admin_dashboard.php">Back</a>
+    <a href="../admin/admin_dashboard.php">Back</a>
 </div>
 
 </body>
